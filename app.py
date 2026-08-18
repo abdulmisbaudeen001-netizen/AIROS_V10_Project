@@ -1,3 +1,4 @@
+# REDEPLOY: 2026-08-18 — fixed token_sequence regression (stale build)
 """
 AIROS V10.3 — Temporal Behavior Inference Server
 POST /predict  →  { p_down, p_up, context_ready, inference_ms, model_version }
@@ -226,9 +227,7 @@ def build_live_ctx(
     # from the same sequence_signature() function at training time.
     stored_vecs = np.stack([p[2] for p in prior]).astype(np.float32)
     scale = np.maximum(np.std(stored_vecs, axis=0), 1e-5)
-    # cur_sig has 15 dims; stored_vecs has CTX_DIM (12) dims — compare only the overlap
-    sig_dim = min(len(cur_sig), stored_vecs.shape[1])
-    dist  = np.mean(np.abs(stored_vecs[:, :sig_dim] - cur_sig[:sig_dim][None, :]) / scale[:sig_dim][None, :], axis=1)
+    dist  = np.mean(np.abs(stored_vecs - cur_sig[:CTX_DIM][None, :]) / scale[None, :], axis=1)
     sim   = np.exp(-dist / max(SIMILARITY_TEMPERATURE, 1e-6))
 
     minute_dist   = np.array([abs(p[1] - minute) for p in prior], dtype=np.float32)
@@ -257,8 +256,7 @@ def build_live_ctx(
         ex_vecs  = stored_vecs[ex_ids]
         ex_states= ex_vecs[:, 0]
         ex_scale = np.maximum(np.std(ex_vecs, axis=0), 1e-5)
-        ex_sig_dim = min(len(cur_sig), ex_vecs.shape[1])
-        ex_dist  = np.mean(np.abs(ex_vecs[:, :ex_sig_dim] - cur_sig[:ex_sig_dim][None, :]) / ex_scale[:ex_sig_dim][None, :], axis=1)
+        ex_dist  = np.mean(np.abs(ex_vecs - cur_sig[:CTX_DIM][None, :]) / ex_scale[None, :], axis=1)
         ex_sim   = np.exp(-ex_dist / max(SIMILARITY_TEMPERATURE, 1e-6))
         ek       = min(HISTORY_TOP_K, len(ex_sim))
         eids     = np.argpartition(ex_sim, -ek)[-ek:]
